@@ -1,5 +1,5 @@
 {
-  "name": "apollo-datasource-airtable",
+  "name": "@mlabisi/apollo-datasource-airtable",
   "version": "1.0.0",
   "description": "Apollo data source for Airtable",
   "main": "index.js",
@@ -14,6 +14,9 @@
     "semi": true,
     "singleQuote": true,
     "trailingComma": "all"
+  },
+  "publishConfig": {
+    "@YOUR-USERNAME:registry": "https://npm.pkg.github.com"
   },
   "author": "",
   "license": "ISC",
