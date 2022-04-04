@@ -49,7 +49,7 @@ const orderRecords = (fieldsToFilters, results) => {
   });
 };
 
-const createCachingMethods = ({ table, base, cache }) => {
+const createCachingMethods = ({ table, cache }) => {
   const loader = new DataLoader(async (keys) => { // `keys` = array of objects when findByFields
     const fieldsToFilters = keys.map(EJSON.parse); // parse each of the data loader keys
 
@@ -93,7 +93,7 @@ const createCachingMethods = ({ table, base, cache }) => {
     };
 
     const results = [];
-    base(table)
+    table
       .select(params)
       .eachPage(
         (records, fetchNextPage) => {

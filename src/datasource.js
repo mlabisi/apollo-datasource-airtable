@@ -15,7 +15,6 @@ class AirtableDataSource extends DataSource {
 
     const methods = createCachingMethods({
       table: this.table,
-      base: this.context.Airtable,
       cache: cache || new InMemoryLRUCache(),
     });
 
