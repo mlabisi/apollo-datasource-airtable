@@ -1,9 +1,7 @@
-[![npm version](https://badge.fury.io/js/apollo-datasource-mongodb.svg)](https://www.npmjs.com/package/apollo-datasource-mongodb)
-
-Apollo [data source](https://www.apollographql.com/docs/apollo-server/features/data-sources) for MongoDB
+Apollo [data source](https://www.apollographql.com/docs/apollo-server/features/data-sources) for Airtable , heavily Inspired by [apollo-datasource-mongodb](https://www.npmjs.com/package/apollo-datasource-mongodb)
 
 ```
-npm i apollo-datasource-mongodb
+npm i apollo-datasource-airtable
 ```
 
 This package uses [DataLoader](https://github.com/graphql/dataloader) for batching and per-request memoization caching. It also optionally (if you provide a `ttl`) does shared application-level caching (using either the default Apollo `InMemoryLRUCache` or the [cache you provide to ApolloServer()](https://www.apollographql.com/docs/apollo-server/features/data-sources#using-memcachedredis-as-a-cache-storage-backend)). It does this for the following methods:
@@ -36,14 +34,14 @@ This package uses [DataLoader](https://github.com/graphql/dataloader) for batchi
 
 ### Basic
 
-The basic setup is subclassing `MongoDataSource`, passing your collection or Mongoose model to the constructor, and using the [API methods](#API):
+The basic setup is subclassing `AirtableDataSource`, passing your table or Mongoose model to the constructor, and using the [API methods](#API):
 
 `data-sources/Users.js`
 
 ```js
-import { MongoDataSource } from 'apollo-datasource-mongodb'
+import { AirtableDataSource } from 'apollo-datasource-airtable'
 
-export default class Users extends MongoDataSource {
+export default class Users extends AirtableDataSource {
   getUser(userId) {
     return this.findOneById(userId)
   }
@@ -53,28 +51,28 @@ export default class Users extends MongoDataSource {
 and:
 
 ```js
-import { MongoClient } from 'mongodb'
+import Airtable from 'airtable'
 
 import Users from './data-sources/Users.js'
 
-const client = new MongoClient('mongodb://localhost:27017/test')
+const client = new MongoClient('airtable://localhost:27017/test')
 client.connect()
 
 const server = new ApolloServer({
   typeDefs,
   resolvers,
   dataSources: () => ({
-    users: new Users(client.db().collection('users'))
+    users: new Users(client.db().table('users'))
     // OR
     // users: new Users(UserModel)
   })
 })
 ```
 
-Inside the data source, the collection is available at `this.collection` (e.g. `this.collection.update({_id: 'foo, { $set: { name: 'me' }}})`). The model (if you're using Mongoose) is available at `this.model` (`new this.model({ name: 'Alice' })`). The request's context is available at `this.context`. For example, if you put the logged-in user's ID on context as `context.currentUserId`:
+Inside the data source, the table is available at `this.table` (e.g. `this.table.select({formulaByFilter: ""})`). The request's context is available at `this.context`. For example, if you put the logged-in user's ID on context as `context.currentUserId`:
 
 ```js
-class Users extends MongoDataSource {
+class Users extends AirtableDataSource {
   ...
 
   async getPrivateUserData(userId) {
@@ -90,7 +88,7 @@ class Users extends MongoDataSource {
 If you want to implement an initialize method, it must call the parent method:
 
 ```js
-class Users extends MongoDataSource {
+class Users extends AirtableDataSource {
   initialize(config) {
     super.initialize(config)
     ...
@@ -98,20 +96,18 @@ class Users extends MongoDataSource {
 }
 ```
 
-If you're passing a Mongoose model rather than a collection, Mongoose will be used for data fetching. All transformations defined on that model (virtuals, plugins, etc.) will be applied to your data before caching, just like you would expect it. If you're using reference fields, you might be interested in checking out [mongoose-autopopulate](https://www.npmjs.com/package/mongoose-autopopulate).
-
 ### Batching
 
 This is the main feature, and is always enabled. Here's a full example:
 
 ```js
-class Users extends MongoDataSource {
+class Users extends AirtableDataSource {
   getUser(userId) {
     return this.findOneById(userId)
   }
 }
 
-class Posts extends MongoDataSource {
+class Posts extends AirtableDataSource {
   getPosts(postIds) {
     return this.findManyByIds(postIds)
   }
@@ -130,8 +126,8 @@ const server = new ApolloServer({
   typeDefs,
   resolvers,
   dataSources: () => ({
-    users: new Users(db.collection('users')),
-    posts: new Posts(db.collection('posts'))
+    users: new Users(db.table('users')),
+    posts: new Posts(db.table('posts'))
   })
 })
 ```
@@ -143,14 +139,14 @@ To enable shared application-level caching, you do everything from the above sec
 ```js
 const MINUTE = 60
 
-class Users extends MongoDataSource {
+class Users extends AirtableDataSource {
   getUser(userId) {
     return this.findOneById(userId, { ttl: MINUTE })
   }
 
   updateUserName(userId, newName) {
     this.deleteFromCacheById(userId)
-    return this.collection.updateOne({
+    return this.table.updateOne({
       _id: userId
     }, {
       $set: { name: newName }
@@ -173,16 +169,15 @@ Here we also call [`deleteFromCacheById()`](#deletefromcachebyid) to remove the 
 
 ### TypeScript
 
-Since we are using a typed language, we want the provided methods to be correctly typed as well. This requires us to make the `MongoDataSource` class polymorphic. It requires 1-2 template arguments. The first argument is the type of the document in our collection. The second argument is the type of context in our GraphQL server, which defaults to `any`. For example:
+Since we are using a typed language, we want the provided methods to be correctly typed as well. This requires us to make the `AirtableDataSource` class polymorphic. It requires 1-2 template arguments. The first argument is the type of the document in our table. The second argument is the type of context in our GraphQL server, which defaults to `any`. For example:
 
 `data-sources/Users.ts`
 
 ```ts
-import { MongoDataSource } from 'apollo-datasource-mongodb'
-import { ObjectId } from 'mongodb'
+import { AirtableDataSource } from 'apollo-datasource-airtable'
 
 interface UserDocument {
-  _id: ObjectId
+  _id: string
   username: string
   password: string
   email: string
@@ -194,10 +189,10 @@ interface Context {
   loggedInUser: UserDocument
 }
 
-export default class Users extends MongoDataSource<UserDocument, Context> {
+export default class Users extends AirtableDataSource<UserDocument, Context> {
   getUser(userId) {
     // this.context has type `Context` as defined above
-    // this.findOneById has type `(id: ObjectId) => Promise<UserDocument | null | undefined>`
+    // this.findOneById has type `(id: string) => Promise<UserDocument | null | undefined>`
     return this.findOneById(userId)
   }
 }
@@ -206,18 +201,18 @@ export default class Users extends MongoDataSource<UserDocument, Context> {
 and:
 
 ```ts
-import { MongoClient } from 'mongodb'
+import Airtable from 'airtable'
 
 import Users from './data-sources/Users.ts'
 
-const client = new MongoClient('mongodb://localhost:27017/test')
+const client = new MongoClient('airtable://localhost:27017/test')
 client.connect()
 
 const server = new ApolloServer({
   typeDefs,
   resolvers,
   dataSources: () => ({
-    users: new Users(client.db().collection('users'))
+    users: new Users(client.db().table('users'))
     // OR
     // users: new Users(UserModel)
   })
@@ -226,13 +221,13 @@ const server = new ApolloServer({
 
 ## API
 
-The type of the `id` argument must match the type used in the database. We currently support ObjectId and string types.
+The type of the `id` argument must match the type used in the database, which is a string.
 
 ### findOneById
 
 `this.findOneById(id, { ttl })`
 
-Resolves to the found document. Uses DataLoader to load `id`. DataLoader uses `collection.find({ _id: { $in: ids } })`. Optionally caches the document if `ttl` is set (in whole positive seconds).
+Resolves to the found document. Uses DataLoader to load `id`. DataLoader uses `table.select({ filterByFormula: "OR((SWITCH({{name}, "a", 1, "b", 1, "c", 1, 0))=1)" })`. Optionally caches the document if `ttl` is set (in whole positive seconds).
 
 ### findManyByIds
 
@@ -254,8 +249,8 @@ interface Fields {
     | string
     | number
     | boolean
-    | ObjectId
-    | (string | number | boolean | ObjectId)[]
+    | string
+    | (string | number | boolean | string)[]
 }
 ```
 
@@ -263,19 +258,19 @@ interface Fields {
 
 ```js
 // get user by username
-// `collection.find({ username: $in: ['testUser'] })`
+// `table.select({ username: $in: ['testUser'] })`
 this.findByFields({
   username: 'testUser'
 })
 
 // get all users with either the "gaming" OR "games" interest
-// `collection.find({ interests: $in: ['gaming', 'games'] })`
+// `table.select({ interests: $in: ['gaming', 'games'] })`
 this.findByFields({
   interests: ['gaming', 'games']
 })
 
 // get user by username AND with either the "gaming" OR "games" interest
-// `collection.find({ username: $in: ['testUser'], interests: $in: ['gaming', 'games'] })`
+// `table.select({ username: $in: ['testUser'], interests: $in: ['gaming', 'games'] })`
 this.findByFields({
   username: 'testUser',
   interests: ['gaming', 'games']
