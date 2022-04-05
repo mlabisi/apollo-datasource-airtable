@@ -34,7 +34,7 @@ This package uses [DataLoader](https://github.com/graphql/dataloader) for batchi
 
 ### Basic
 
-The basic setup is subclassing `AirtableDataSource`, passing your table or Mongoose model to the constructor, and using the [API methods](#API):
+The basic setup is subclassing `AirtableDataSource` and using the [API methods](#API):
 
 `data-sources/Users.js`
 
@@ -55,16 +55,13 @@ import Airtable from 'airtable'
 
 import Users from './data-sources/Users.js'
 
-const client = new MongoClient('airtable://localhost:27017/test')
-client.connect()
+const base = new Airtable({ apiKey: AIRTABLE_API_KEY }).base(AIRTABLE_BASE);
 
 const server = new ApolloServer({
   typeDefs,
   resolvers,
   dataSources: () => ({
-    users: new Users(client.db().table('users'))
-    // OR
-    // users: new Users(UserModel)
+    users: new Users(base.table(AIRTABLE_TABLE))
   })
 })
 ```
