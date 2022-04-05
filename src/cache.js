@@ -1,4 +1,4 @@
-const { DataLoader } = require('dataloader');
+const DataLoader = require('dataloader');
 const { EJSON } = require('bson');
 
 const mapFieldsToFilters = (filterFields) => {
@@ -23,100 +23,128 @@ const mapFieldsToFilters = (filterFields) => {
 };
 
 const orderRecords = (fieldsToFilters, results) => {
-  fieldsToFilters.map((fieldAndFilters) => {
-    results.filter(result => {
-      for (const fieldName in fieldAndFilters) { // for each field name
+  return fieldsToFilters.map((fieldAndFilters) => {
+    // for each field name
+    for (const fieldName in fieldAndFilters) {
+      // if we want all records (aka field name is "ALL")
+      if (fieldName === "ALL") {
+        return fieldAndFilters[fieldName]; // the value will be in the `fieldsToFilters` object
+      }
+
+      // otherwise, return filtered results
+      return results.filter((result) => {
         const filterValues = fieldAndFilters[fieldName]; // get the filter values
-        if (typeof filterValues === 'undefined') continue;
-        const wrappedFilterValues = Array.isArray(filterValues) ? filterValues.map(val => val.toLowerCase()) : [filterValues.toLowerCase()];
+        // if (typeof filterValues === 'undefined') continue;
+        const wrappedFilterValues = Array.isArray(filterValues)
+          ? filterValues.map((val) => val.toLowerCase())
+          : [filterValues.toLowerCase()];
 
         const resultValue = result[fieldName]; // get the actual values
-        if (typeof resultValue === 'undefined') continue;
-        const wrappedResultValue = Array.isArray(resultValue) ? resultValue.map(val => val.toLowerCase()) : [resultValue.toLowerCase()];
+        // if (typeof resultValue === 'undefined') continue;
+        const wrappedResultValue = Array.isArray(resultValue)
+          ? resultValue.map((val) => val.toLowerCase())
+          : [resultValue.toLowerCase()];
 
         let isMatch = false;
         do {
           for (const filterValue of wrappedFilterValues) {
-            if (wrappedResultValue.includes(filterValue)) { // check if actual value is one of the filter values
+            if (wrappedResultValue.includes(filterValue)) {
+              // check if actual value is one of the filter values
               isMatch = true;
             }
           }
         } while (!isMatch);
 
         return isMatch;
-      }
-    });
+      })
+    };
   });
 };
 
 const createCachingMethods = ({ table, cache }) => {
-  const loader = new DataLoader(async (keys) => { // `keys` = array of objects when findByFields
-    const fieldsToFilters = keys.map(EJSON.parse); // parse each of the data loader keys
+  const loader = new DataLoader(async (keys) => {// `keys` = array of objects
+    const filters = [];
+    const results = [];
 
-    // generate the airtable query parameters
-    const fields = fieldsToFilters.reduce((prev, curr) => {
+    // check filters and collect all matching records
+    for (const curr of keys) {
+      // if the current object is the string "ALL", then retrieve all records
+      if (curr === 'ALL') {
+        await table.select({ view: 'Grid view' }).all().then((allRecords) => {
+          filters.push({ "ALL": allRecords.map((record) => record._rawJson) });
+        });
+      } else {
+        const currObj = EJSON.parse(keys[curr]);
 
-      // consolidate potential duplicates
-      const existing = prev.find(
-        obj =>
-          [...Object.keys(obj)].sort().join() === [...Object.keys(curr)].sort().join(),
-        // the existing fields to be filtered === the current fields to be filtered
-      );
-      const fields = existing || {}; // if we already registered this combo of filters, we'll load up its filter values and append any new ones
+        // consolidate potential duplicates
+        const existing = filters.find(
+          (obj) =>
+            [...Object.keys(obj)].sort().join() ===
+            [...Object.keys(currObj)].sort().join(),
+          // the existing fields to be filtered === the current fields to be filtered
+        );
+        const fields = existing || {}; // if we already registered this combo of filters, we'll load up its filter values and append any new ones
 
-      for (const fieldName in curr) {
-        if (typeof curr[fieldName] === 'undefined') continue; // if there are no filters for the given field name, skip it
-        const wrappedValues = Array.isArray(curr[fieldName]) ? curr[fieldName] : [curr[fieldName]];
+        for (const fieldName in currObj) {
+          if (typeof currObj[fieldName] === 'undefined') continue; // if there are no filters for the given field name, skip it
+          const wrappedValues = Array.isArray(currObj[fieldName])
+            ? currObj[fieldName]
+            : [currObj[fieldName]];
 
-        if (!fields[fieldName]) fields[fieldName] = { values: wrappedValues }; // if it's the first time we're seeing this field name, make sure its filter values are wrapped in an array
-        else fields[fieldName].values = [...fields[fieldName].values, ...wrappedValues]; // otherwise, add the new values to the existing list of filter values for this field
+          if (!fields[fieldName])
+            fields[fieldName] = {
+              values: wrappedValues,
+            };
+          // if it's the first time we're seeing this field name, make sure its filter values are wrapped in an array
+          else
+            fields[fieldName].values = [
+              ...fields[fieldName].values,
+              ...wrappedValues,
+            ]; // otherwise, add the new values to the existing list of filter values for this field
 
-        const cases = (fields[fieldName]).map((value) => `"${value.toString()}", 1`); // for each filter value, add the case to the airtable switch statement
-        fields[fieldName].formula = `(SWITCH({${fieldName}},${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
+          const cases = fields[fieldName].map(
+            (value) => `"${value.toString()}", 1`,
+          ); // for each filter value, add the case to the airtable switch statement
+          fields[fieldName].formula = `(SWITCH({${fieldName}},${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
+        }
+
+        const filterFormulas = [];
+
+        for (const fieldName in fields) {
+          const { formula, values } = fields[fieldName];
+          filterFormulas.push(formula);
+          filters.push({ [fieldName]: values });
+        }
+
+        const params = {
+          filterByFormula: `OR(${filterFormulas.toString()})`, // collect and apply  all filters
+          view: 'Grid view',
+        };
+
+        await table.select(params).eachPage(
+          (records, fetchNextPage) => {
+            records.forEach((record) => {
+              results.push(record._rawJson);
+            });
+
+            fetchNextPage();
+          },
+          (error) => {
+            if (error) {
+              console.error(error);
+            }
+          },
+        );
       }
-
-      return fields;
-    }, []);
-
-    const filterFormulas = [];
-    const filterValues = [];
-
-    for (const fieldName in fields) {
-      const { formula, values } = fields[fieldName];
-      filterFormulas.push(formula);
-      filterValues.push({ [fieldName]: values });
     }
 
-    const params = {
-      filterByFormula: `OR(${filterFormulas.toString()})`, // collect and apply  all filters
-      view: 'Grid view',
-    };
-
-    const results = [];
-    table
-      .select(params)
-      .eachPage(
-        (records, fetchNextPage) => {
-          records.forEach((record) => {
-            results.push(record._rawJson);
-          });
-
-          fetchNextPage();
-        },
-        (error) => {
-          if (error) {
-            console.error(error);
-          }
-        },
-      );
-
-    return orderRecords(filterValues, results);
+    return orderRecords(filters, results);
   });
 
-  const cachePrefix = `airtable-${table}-`;
+  const cachePrefix = `airtable-${table.name}-`;
 
   const methods = {
-    findOneById: async (id, { ttl } = {}) => {
+    findOneById: async (id, { ttl }) => {
       // check cache for record with given id
       const cacheKey = cachePrefix + id.toString();
       const cachedRecord = await cache.get(cacheKey);
@@ -157,7 +185,9 @@ const createCachingMethods = ({ table, cache }) => {
       if (fieldNames.length === 1) {
         const filters = fieldsToFilters[fieldNames[0]]; // retrieve its array of values to filter with
         const filtersArray = Array.isArray(filters) ? filters : [filters]; // ensure value is wrapped in an array
-        const records = await Promise.all(filtersArray.map(filterVal => { // for each individual filter value
+        const records = await Promise.all(
+          filtersArray.map((filterVal) => {
+            // for each individual filter value
             const filter = {}; // create an object
             filters[fieldNames[0]] = filterVal; // { <fieldName>: <filterVal> }
             loader.load(EJSON.stringify(filter));
@@ -165,7 +195,8 @@ const createCachingMethods = ({ table, cache }) => {
         );
 
         result = [].concat(...records);
-      } else { // if there are multiple fields...
+      } else {
+        // if there are multiple fields...
         result = await loader.load(loaderKey); // load the records that match the given filters { <fieldName>: [<val1> [, ...<vals>]] }
       }
 
@@ -174,6 +205,24 @@ const createCachingMethods = ({ table, cache }) => {
       }
 
       return result;
+    },
+    findAll: async ({ ttl } = {}) => {
+      // check cache for records
+      const cacheKey = cachePrefix + 'all';
+      const cachedResult = await cache.get(cacheKey);
+
+      // return the cached result
+      if (cachedResult) {
+        return cachedResult;
+      }
+
+      const wrappedResult = await loader.load('ALL');
+
+      if (ttl) {
+        cache.set(cacheKey, wrappedResult, { ttl });
+      }
+
+      return wrappedResult;
     },
     deleteFromCacheById: async (id) => {
       loader.clear(EJSON.stringify({ id }));

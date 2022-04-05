@@ -1,1 +1,1 @@
-export { AirtableDataSource } from './datasource'
+module.exports = require('./datasource')

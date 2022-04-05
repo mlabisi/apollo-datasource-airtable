@@ -1,7 +1,7 @@
 const { DataSource } = require('apollo-datasource');
 const { InMemoryLRUCache } = require('apollo-server-caching');
 
-import { createCachingMethods } from './cache';
+const { createCachingMethods } = require('./cache');
 
 class AirtableDataSource extends DataSource {
   constructor(table) {
@@ -22,4 +22,6 @@ class AirtableDataSource extends DataSource {
   }
 }
 
-export { AirtableDataSource };
+module.exports = {
+  AirtableDataSource
+}
