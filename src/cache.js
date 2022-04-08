@@ -68,73 +68,74 @@ const createCachingMethods = ({ table, cache }) => {
     const filters = [];
     const results = [];
 
-    // check filters and collect all matching records
-    for (const curr of keys) {
-      // if the current object is the string "ALL", then retrieve all records
+    const fields = keys.reduce((existingFilters, curr) => {
       if (curr === 'ALL') {
-        await table
+        let all;
+        table
           .select({ view: 'Grid view' })
           .all()
           .then((allRecords) => {
-            filters.push({ ALL: allRecords.map((record) => record._rawJson) });
+            all = { ALL: allRecords.map((record) => record._rawJson) };
+            existingFilters.push(all);
           });
-      } else {
-        const currObj = EJSON.parse(curr);
-
-        // consolidate potential duplicates
-        const existing = filters.find(
-          (obj) =>
-            [...Object.keys(obj)].sort().join() ===
-            [...Object.keys(currObj)].sort().join(),
-          // the existing fields to be filtered === the current fields to be filtered
-        );
-        const fields = existing || {}; // if we already registered this combo of filters, we'll load up its filter values and append any new ones
-
-        for (const fieldName in currObj) {
-          if (typeof currObj[fieldName] === 'undefined') continue; // if there are no filters for the given field name, skip it
-          const wrappedValues = Array.isArray(currObj[fieldName])
-            ? currObj[fieldName]
-            : [currObj[fieldName]];
-
-          if (!fields[fieldName])
-            fields[fieldName] = {
-              values: wrappedValues,
-            };
-          // if it's the first time we're seeing this field name, make sure its filter values are wrapped in an array
-          else
-            fields[fieldName].values = [
-              ...fields[fieldName].values,
-              ...wrappedValues,
-            ]; // otherwise, add the new values to the existing list of filter values for this field
-
-          const cases = fields[fieldName].values.map(
-            (value) => `"${value.toString()}", 1`,
-          ); // for each filter value, add the case to the airtable switch statement
-          fields[fieldName].formula = `(SWITCH(${fieldName === "id" ? 'RECORD_ID()' : `{${fieldName}}`},${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
-        }
-
-        const filterFormulas = [];
-
-        for (const fieldName in fields) {
-          const { formula, values } = fields[fieldName];
-          filterFormulas.push(formula);
-          filters.push({ [fieldName]: values });
-        }
-
-        const params = {
-          filterByFormula: `OR(${filterFormulas.toString()})`, // collect and apply  all filters
-          view: 'Grid view',
-        };
-
-        await table.select(params).eachPage((records, fetchNextPage) => {
-          records.forEach((record) => {
-            results.push(record._rawJson);
-          });
-
-          fetchNextPage();
-        });
+        return all;
       }
+
+      const currObj = EJSON.parse(curr);
+
+      // consolidate potential duplicates
+      const existing = existingFilters.find(
+        (obj) =>
+          [...Object.keys(obj)].sort().join() ===
+          [...Object.keys(currObj)].sort().join(),
+        // the existing fields to be filtered === the current fields to be filtered
+      );
+      const temp = existing ?? {}; // if we already registered this combo of filters, we'll load up its filter values and append any new ones
+
+      for (const fieldName in currObj) {
+        if (typeof currObj[fieldName] === 'undefined') continue; // if there are no filters for the given field name, skip it
+        const wrappedValues = Array.isArray(currObj[fieldName])
+          ? currObj[fieldName]
+          : [currObj[fieldName]];
+
+        if (!temp[fieldName])
+          temp[fieldName] = {
+            values: wrappedValues,
+          };
+        // if it's the first time we're seeing this field name, make sure its filter values are wrapped in an array
+        else
+          temp[fieldName].values = [...existing[fieldName], ...wrappedValues]; // otherwise, add the new values to the existing list of filter values for this field
+
+        const cases = temp[fieldName].values.map(
+          (value) => `"${value.toString()}", 1`,
+        ); // for each filter value, add the case to the airtable switch statement
+        temp[fieldName].formula = `(SWITCH(${
+          fieldName === 'id' ? 'RECORD_ID()' : `{${fieldName}}`
+        },${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
+        return temp;
+      }
+    }, []);
+
+    const filterFormulas = [];
+
+    for (const fieldName in fields) {
+      const { formula, values } = fields[fieldName];
+      filterFormulas.push(formula);
+      filters.push({ [fieldName]: values });
     }
+
+    const params = {
+      filterByFormula: `OR(${filterFormulas.toString()})`, // collect and apply  all filters
+      view: 'Grid view',
+    };
+
+    await table.select(params).eachPage((records, fetchNextPage) => {
+      records.forEach((record) => {
+        results.push(record._rawJson);
+      });
+
+      fetchNextPage();
+    });
 
     return orderRecords(filters, results);
   });
