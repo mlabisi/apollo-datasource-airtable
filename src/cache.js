@@ -28,23 +28,23 @@ const orderRecords = (fieldsToFilters, results) => {
     // for each field name
     for (const fieldName in fieldAndFilters) {
       // if we want all records (aka field name is "ALL")
-      if (fieldName === "ALL") {
+      if (fieldName === 'ALL') {
         return fieldAndFilters[fieldName]; // the value will be in the `fieldsToFilters` object
       }
 
       // otherwise, return filtered results
       return results.filter((result) => {
         const filterValues = fieldAndFilters[fieldName]; // get the filter values
-        // if (typeof filterValues === 'undefined') continue;
+        if (typeof filterValues === 'undefined') return false;
         const wrappedFilterValues = Array.isArray(filterValues)
           ? filterValues.map((val) => val.toLowerCase())
-          : [filterValues.toLowerCase()];
+          : [filterValues.toString().toLowerCase()];
 
-        const resultValue = result[fieldName]; // get the actual values
-        // if (typeof resultValue === 'undefined') continue;
+        const resultValue = result.fields[fieldName]; // get the actual values
+        if (typeof resultValue === 'undefined') return false;
         const wrappedResultValue = Array.isArray(resultValue)
           ? resultValue.map((val) => val.toLowerCase())
-          : [resultValue.toLowerCase()];
+          : [resultValue.toString().toLowerCase()];
 
         let isMatch = false;
         do {
@@ -57,13 +57,14 @@ const orderRecords = (fieldsToFilters, results) => {
         } while (!isMatch);
 
         return isMatch;
-      })
-    };
+      });
+    }
   });
 };
 
 const createCachingMethods = ({ table, cache }) => {
-  const loader = new DataLoader(async (keys) => {// `keys` = array of objects
+  const loader = new DataLoader(async (keys) => {
+    // `keys` = array of objects
     const filters = [];
     const results = [];
 
@@ -71,8 +72,11 @@ const createCachingMethods = ({ table, cache }) => {
     for (const curr of keys) {
       // if the current object is the string "ALL", then retrieve all records
       if (curr === 'ALL') {
-        await table.select({ view: 'Grid view' }).all().then((allRecords) => {
-          filters.push({ "ALL": allRecords.map((record) => record._rawJson) });
+        await table
+          .select({ view: 'Grid view' })
+          .all()
+          .then((allRecords) => {
+            filters.push({ ALL: allRecords.map((record) => record._rawJson) });
           });
       } else {
         const currObj = EJSON.parse(curr);
@@ -103,10 +107,10 @@ const createCachingMethods = ({ table, cache }) => {
               ...wrappedValues,
             ]; // otherwise, add the new values to the existing list of filter values for this field
 
-          const cases = (fields[fieldName]).map(
+          const cases = fields[fieldName].values.map(
             (value) => `"${value.toString()}", 1`,
           ); // for each filter value, add the case to the airtable switch statement
-          fields[fieldName].formula = `(SWITCH({${fieldName}},${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
+          fields[fieldName].formula = `(SWITCH(${fieldName === "id" ? 'RECORD_ID()' : `{${fieldName}}`},${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
         }
 
         const filterFormulas = [];
@@ -122,20 +126,13 @@ const createCachingMethods = ({ table, cache }) => {
           view: 'Grid view',
         };
 
-        await table.select(params).eachPage(
-            (records, fetchNextPage) => {
-              records.forEach((record) => {
-              results.push(record._rawJson);
-              });
+        await table.select(params).eachPage((records, fetchNextPage) => {
+          records.forEach((record) => {
+            results.push(record._rawJson);
+          });
 
-              fetchNextPage();
-            },
-            (error) => {
-              if (error) {
-                console.error(error);
-            }
-            },
-          );
+          fetchNextPage();
+        });
       }
     }
 
@@ -155,7 +152,9 @@ const createCachingMethods = ({ table, cache }) => {
         return cachedRecord;
       }
 
-      const wrappedRecord = await loader.load({ id: id.toString() });
+      const wrappedRecord = await loader.load(
+        EJSON.stringify({ id: id.toString() }),
+      );
 
       if (ttl) {
         cache.set(cacheKey, wrappedRecord[0], { ttl });
@@ -175,35 +174,18 @@ const createCachingMethods = ({ table, cache }) => {
       const cachedResult = await cache.get(cacheKey);
 
       // return the cached result
-      if (cachedResult) {
-        return EJSON.parse(cachedResult);
-      }
+      // if (cachedResult) {
+      //   return EJSON.parse(cachedResult);
+      // }
 
       const fieldNames = Object.keys(fieldsToFilters);
       let result;
 
-      // if there's only one field...
-      if (fieldNames.length === 1) {
-        const filters = fieldsToFilters[fieldNames[0]]; // retrieve its array of values to filter with
-        const filtersArray = Array.isArray(filters) ? filters : [filters]; // ensure value is wrapped in an array
-        const records = await Promise.all(
-          filtersArray.map((filterVal) => {
-            // for each individual filter value
-            const filter = {}; // create an object
-            filter[fieldNames[0]] = filterVal; // { <fieldName>: <filterVal> }
-            loader.load(EJSON.stringify(filter));
-          }), // load the records that match the given filter
-        );
-
-        result = [].concat(...records);
-      } else {
-      // if there are multiple fields...
       result = await loader.load(loaderKey); // load the records that match the given filters { <fieldName>: [<val1> [, ...<vals>]] }
-      }
 
-      if (ttl) {
-        cache.set(cacheKey, EJSON.stringify(records), { ttl });
-      }
+      // if (ttl) {
+      //   cache.set(cacheKey, EJSON.stringify(records), { ttl });
+      // }
 
       return result;
     },
