@@ -3,8 +3,9 @@ const { EJSON } = require('bson');
 
 const mapFieldsToFilters = (filterFields) => {
   const fieldsToFilters = {};
+  const sortedFields = Object.keys(filterFields).sort();
 
-  for (const fieldName in filterFields.sort()) {
+  for (const fieldName of sortedFields) {
     // skip undefined field names
     if (typeof fieldName === 'undefined') {
       continue;
@@ -72,9 +73,9 @@ const createCachingMethods = ({ table, cache }) => {
       if (curr === 'ALL') {
         await table.select({ view: 'Grid view' }).all().then((allRecords) => {
           filters.push({ "ALL": allRecords.map((record) => record._rawJson) });
-        });
+          });
       } else {
-        const currObj = EJSON.parse(keys[curr]);
+        const currObj = EJSON.parse(curr);
 
         // consolidate potential duplicates
         const existing = filters.find(
@@ -102,7 +103,7 @@ const createCachingMethods = ({ table, cache }) => {
               ...wrappedValues,
             ]; // otherwise, add the new values to the existing list of filter values for this field
 
-          const cases = fields[fieldName].map(
+          const cases = (fields[fieldName]).map(
             (value) => `"${value.toString()}", 1`,
           ); // for each filter value, add the case to the airtable switch statement
           fields[fieldName].formula = `(SWITCH({${fieldName}},${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
@@ -122,19 +123,19 @@ const createCachingMethods = ({ table, cache }) => {
         };
 
         await table.select(params).eachPage(
-          (records, fetchNextPage) => {
-            records.forEach((record) => {
+            (records, fetchNextPage) => {
+              records.forEach((record) => {
               results.push(record._rawJson);
-            });
+              });
 
-            fetchNextPage();
-          },
-          (error) => {
-            if (error) {
-              console.error(error);
+              fetchNextPage();
+            },
+            (error) => {
+              if (error) {
+                console.error(error);
             }
-          },
-        );
+            },
+          );
       }
     }
 
@@ -189,15 +190,15 @@ const createCachingMethods = ({ table, cache }) => {
           filtersArray.map((filterVal) => {
             // for each individual filter value
             const filter = {}; // create an object
-            filters[fieldNames[0]] = filterVal; // { <fieldName>: <filterVal> }
+            filter[fieldNames[0]] = filterVal; // { <fieldName>: <filterVal> }
             loader.load(EJSON.stringify(filter));
           }), // load the records that match the given filter
         );
 
         result = [].concat(...records);
       } else {
-        // if there are multiple fields...
-        result = await loader.load(loaderKey); // load the records that match the given filters { <fieldName>: [<val1> [, ...<vals>]] }
+      // if there are multiple fields...
+      result = await loader.load(loaderKey); // load the records that match the given filters { <fieldName>: [<val1> [, ...<vals>]] }
       }
 
       if (ttl) {
