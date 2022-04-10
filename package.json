@@ -16,9 +16,9 @@
     "trailingComma": "all"
   },
   "publishConfig": {
-    "@YOUR-USERNAME:registry": "https://npm.pkg.github.com"
+    "@mlabisi:registry": "https://npm.pkg.github.com"
   },
-  "author": "",
+  "author": "mlabisi",
   "license": "ISC",
   "dependencies": {
     "airtable": "^0.11.3",
