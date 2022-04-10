@@ -76,8 +76,8 @@ const createCachingMethods = ({ table, cache }) => {
           .all()
           .then((allRecords) => {
             const records = allRecords.map((record) => record._rawJson);
-            all = { ALL: { values: records } };
-            results.push(records);
+            all = { ALL: records };
+            filters.push(all);
           });
       } else {
         const currObj = EJSON.parse(curr);
