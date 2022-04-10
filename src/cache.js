@@ -163,18 +163,18 @@ const createCachingMethods = ({ table, cache }) => {
       const cachedResult = await cache.get(cacheKey);
 
       // return the cached result
-      // if (cachedResult) {
-      //   return EJSON.parse(cachedResult);
-      // }
+      if (cachedResult) {
+        return EJSON.parse(cachedResult);
+      }
 
       const fieldNames = Object.keys(fieldsToFilters);
       let result;
 
       result = await loader.load(loaderKey); // load the records that match the given filters { <fieldName>: [<val1> [, ...<vals>]] }
 
-      // if (ttl) {
-      //   cache.set(cacheKey, EJSON.stringify(records), { ttl });
-      // }
+      if (ttl) {
+        cache.set(cacheKey, EJSON.stringify(records), { ttl });
+      }
 
       return result;
     },
