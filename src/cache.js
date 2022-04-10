@@ -24,7 +24,7 @@ const mapFieldsToFilters = (filterFields) => {
 };
 
 const orderRecords = (fieldsToFilters, results) => {
-  return fieldsToFilters.map((fieldAndFilters) => {
+  const ordered = fieldsToFilters.map((fieldAndFilters) => {
     // for each field name
     for (const fieldName in fieldAndFilters) {
       // if we want all records (aka field name is "ALL")
@@ -32,34 +32,34 @@ const orderRecords = (fieldsToFilters, results) => {
         return fieldAndFilters[fieldName]; // the value will be in the `fieldsToFilters` object
       }
 
-      // otherwise, return filtered results
       return results.filter((result) => {
+        // otherwise, return filtered results
         const filterValues = fieldAndFilters[fieldName]; // get the filter values
         if (typeof filterValues === 'undefined') return false;
         const wrappedFilterValues = Array.isArray(filterValues)
           ? filterValues.map((val) => val.toLowerCase())
           : [filterValues.toString().toLowerCase()];
 
-        const resultValue = result.fields[fieldName]; // get the actual values
+        const resultValue =
+          fieldName === 'id' ? result.id : result.fields[fieldName]; // get the actual values
         if (typeof resultValue === 'undefined') return false;
         const wrappedResultValue = Array.isArray(resultValue)
           ? resultValue.map((val) => val.toLowerCase())
           : [resultValue.toString().toLowerCase()];
 
         let isMatch = false;
-        do {
-          for (const filterValue of wrappedFilterValues) {
-            if (wrappedResultValue.includes(filterValue)) {
-              // check if actual value is one of the filter values
-              isMatch = true;
-            }
+        for (const resultValue of wrappedResultValue) {
+          if (wrappedFilterValues.includes(resultValue)) {
+            // check if actual value is one of the filter values
+            isMatch = true;
           }
-        } while (!isMatch);
+        }
 
         return isMatch;
       });
     }
   });
+  return ordered;
 };
 
 const createCachingMethods = ({ table, cache }) => {
@@ -68,74 +68,62 @@ const createCachingMethods = ({ table, cache }) => {
     const filters = [];
     const results = [];
 
-    const fields = keys.reduce((existingFilters, curr) => {
+    for (const curr of keys) {
       if (curr === 'ALL') {
         let all;
-        table
+        await table
           .select({ view: 'Grid view' })
           .all()
           .then((allRecords) => {
-            all = { ALL: allRecords.map((record) => record._rawJson) };
-            existingFilters.push(all);
+            const records = allRecords.map((record) => record._rawJson);
+            all = { ALL: { values: records } };
+            results.push(records);
           });
-        return all;
-      }
+      } else {
+        const currObj = EJSON.parse(curr);
 
-      const currObj = EJSON.parse(curr);
+        const filterFormulas = [];
+        const temp = {};
 
-      // consolidate potential duplicates
-      const existing = existingFilters.find(
-        (obj) =>
-          [...Object.keys(obj)].sort().join() ===
-          [...Object.keys(currObj)].sort().join(),
-        // the existing fields to be filtered === the current fields to be filtered
-      );
-      const temp = existing ?? {}; // if we already registered this combo of filters, we'll load up its filter values and append any new ones
+        for (const fieldName in currObj) {
+          if (typeof currObj[fieldName] === 'undefined') continue; // if there are no filters for the given field name, skip it
+          const wrappedValues = Array.isArray(currObj[fieldName])
+            ? currObj[fieldName]
+            : [currObj[fieldName]];
 
-      for (const fieldName in currObj) {
-        if (typeof currObj[fieldName] === 'undefined') continue; // if there are no filters for the given field name, skip it
-        const wrappedValues = Array.isArray(currObj[fieldName])
-          ? currObj[fieldName]
-          : [currObj[fieldName]];
-
-        if (!temp[fieldName])
+          // make sure its filter values are wrapped in an array
           temp[fieldName] = {
             values: wrappedValues,
           };
-        // if it's the first time we're seeing this field name, make sure its filter values are wrapped in an array
-        else
-          temp[fieldName].values = [...existing[fieldName], ...wrappedValues]; // otherwise, add the new values to the existing list of filter values for this field
 
-        const cases = temp[fieldName].values.map(
-          (value) => `"${value.toString()}", 1`,
-        ); // for each filter value, add the case to the airtable switch statement
-        temp[fieldName].formula = `(SWITCH(${
-          fieldName === 'id' ? 'RECORD_ID()' : `{${fieldName}}`
-        },${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
-        return temp;
+          const cases = temp[fieldName].values.map(
+            (value) => `"${value.toString()}", 1`,
+          ); // for each filter value, add the case to the airtable switch statement
+          temp[fieldName].formula = `(SWITCH(${
+            fieldName === 'id' ? 'RECORD_ID()' : `{${fieldName}}`
+          },${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
+
+          const { formula, values } = temp[fieldName];
+          if (formula) filterFormulas.push(formula);
+          filters.push({ [fieldName]: values });
+        }
+
+        if (filterFormulas.length > 0) {
+          const params = {
+            filterByFormula: `OR(${filterFormulas.toString()})`, // collect and apply  all filters
+            view: 'Grid view',
+          };
+
+          await table.select(params).eachPage((records, fetchNextPage) => {
+            records.forEach((record) => {
+              results.push(record._rawJson);
+            });
+
+            fetchNextPage();
+          });
+        }
       }
-    }, []);
-
-    const filterFormulas = [];
-
-    for (const fieldName in fields) {
-      const { formula, values } = fields[fieldName];
-      filterFormulas.push(formula);
-      filters.push({ [fieldName]: values });
     }
-
-    const params = {
-      filterByFormula: `OR(${filterFormulas.toString()})`, // collect and apply  all filters
-      view: 'Grid view',
-    };
-
-    await table.select(params).eachPage((records, fetchNextPage) => {
-      records.forEach((record) => {
-        results.push(record._rawJson);
-      });
-
-      fetchNextPage();
-    });
 
     return orderRecords(filters, results);
   });
