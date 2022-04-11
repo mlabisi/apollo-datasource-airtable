@@ -138,7 +138,7 @@ const createCachingMethods = ({ table, cache }) => {
 
       // return the cached result
       if (cachedRecord) {
-        return cachedRecord;
+        return EJSON.parse(cachedRecord);
       }
 
       const wrappedRecord = await loader.load(
@@ -146,7 +146,7 @@ const createCachingMethods = ({ table, cache }) => {
       );
 
       if (ttl) {
-        cache.set(cacheKey, wrappedRecord[0], { ttl });
+        cache.set(cacheKey, EJSON.stringify(wrappedRecord[0]), { ttl });
       }
 
       return wrappedRecord[0];
@@ -173,7 +173,7 @@ const createCachingMethods = ({ table, cache }) => {
       result = await loader.load(loaderKey); // load the records that match the given filters { <fieldName>: [<val1> [, ...<vals>]] }
 
       if (ttl) {
-        cache.set(cacheKey, EJSON.stringify(records), { ttl });
+        cache.set(cacheKey, EJSON.stringify(result), { ttl });
       }
 
       return result;
