@@ -81,36 +81,29 @@ const createCachingMethods = ({ table, cache }) => {
           });
       } else {
         const currObj = EJSON.parse(curr);
-
         const filterFormulas = [];
-        const temp = {};
 
         for (const fieldName in currObj) {
           if (typeof currObj[fieldName] === 'undefined') continue; // if there are no filters for the given field name, skip it
+          // make sure its filter values are wrapped in an array
           const wrappedValues = Array.isArray(currObj[fieldName])
             ? currObj[fieldName]
             : [currObj[fieldName]];
 
-          // make sure its filter values are wrapped in an array
-          temp[fieldName] = {
-            values: wrappedValues,
-          };
+          // for each filter value, create the airtable equivalent of the Array.includes function
+          for (const value of wrappedValues) {
+            filterFormulas.push(
+              `(FIND("${value.toString().toLowerCase()}", LOWER(ARRAYJOIN({${fieldName}}))))>0`,
+            );
+          }
 
-          const cases = temp[fieldName].values.map(
-            (value) => `"${value.toString()}", 1`,
-          ); // for each filter value, add the case to the airtable switch statement
-          temp[fieldName].formula = `(SWITCH(${
-            fieldName === 'id' ? 'RECORD_ID()' : `{${fieldName}}`
-          },${cases}, 0))=1`; // once all possible values for this field name have been added to the switch, generate the condition
-
-          const { formula, values } = temp[fieldName];
-          if (formula) filterFormulas.push(formula);
-          filters.push({ [fieldName]: values });
+          // then, push the filter and its wrapped values to be ordered later
+          filters.push({ [fieldName]: wrappedValues });
         }
 
         if (filterFormulas.length > 0) {
           const params = {
-            filterByFormula: `OR(${filterFormulas.toString()})`, // collect and apply  all filters
+            filterByFormula: `OR(${filterFormulas.toString()})`, // collect and apply all filters
             view: 'Grid view',
           };
 
