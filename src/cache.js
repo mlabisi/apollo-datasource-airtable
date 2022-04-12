@@ -24,7 +24,7 @@ const mapFieldsToFilters = (filterFields) => {
 };
 
 const orderRecords = (fieldsToFilters, results) => {
-  const ordered = fieldsToFilters.map((fieldAndFilters) => {
+  return fieldsToFilters.map((fieldAndFilters) => {
     // for each field name
     for (const fieldName in fieldAndFilters) {
       // if we want all records (aka field name is "ALL")
@@ -40,8 +40,7 @@ const orderRecords = (fieldsToFilters, results) => {
           ? filterValues.map((val) => val.toLowerCase())
           : [filterValues.toString().toLowerCase()];
 
-        const resultValue =
-          fieldName === 'id' ? result.id : result.fields[fieldName]; // get the actual values
+        const resultValue = result.fields[fieldName]; // get the actual values
         if (typeof resultValue === 'undefined') return false;
         const wrappedResultValue = Array.isArray(resultValue)
           ? resultValue.map((val) => val.toLowerCase())
@@ -59,7 +58,6 @@ const orderRecords = (fieldsToFilters, results) => {
       });
     }
   });
-  return ordered;
 };
 
 const createCachingMethods = ({ table, cache }) => {
