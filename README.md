@@ -37,11 +37,12 @@ The basic setup is subclassing `AirtableDataSource` and using the [API methods](
 `data-sources/Users.js`
 
 ```js
-import { AirtableDataSource } from 'apollo-datasource-airtable';
+const { AirtableDataSource } = require('apollo-datasource-airtable');
+const services = require('../../services');
 
-export default class Users extends AirtableDataSource {
-  getUser(userId) {
-    return this.findOneById(userId);
+module.exports.Users = class extends AirtableDataSource {
+  constructor() {
+    super(services.Airtable.base('users'));
   }
 }
 ```
@@ -59,7 +60,7 @@ const server = new ApolloServer({
   typeDefs,
   resolvers,
   dataSources: () => ({
-    users: new Users(base.table(AIRTABLE_TABLE)),
+    users: new Users(),
   }),
 });
 ```
@@ -67,7 +68,7 @@ const server = new ApolloServer({
 Inside the data source, the table is available at `this.table` (e.g. `this.table.select({filterByFormula: ""})`). The request's context is available at `this.context`. For example, if you put the logged-in user's ID on context as `context.currentUserId`:
 
 ```js
-class Users extends AirtableDataSource {
+module.exports.Users = class extends AirtableDataSource {
   ...
 
   async getPrivateUserData(userId) {
@@ -83,7 +84,7 @@ class Users extends AirtableDataSource {
 If you want to implement an initialize method, it must call the parent method:
 
 ```js
-class Users extends AirtableDataSource {
+module.exports.Users = class extends AirtableDataSource {
   initialize(config) {
     super.initialize(config);
     ...
@@ -96,13 +97,17 @@ class Users extends AirtableDataSource {
 This is the main feature, and is always enabled. Here's a full example:
 
 ```js
-class Users extends AirtableDataSource {
+module.exports.Users = class extends AirtableDataSource {
+  ...
+  
   getUser(userId) {
     return this.findOneById(userId);
   }
 }
 
-class Posts extends AirtableDataSource {
+module.exports.Posts = class extends AirtableDataSource {
+  ...
+    
   getPosts(postIds) {
     return this.findManyByIds(postIds);
   }
@@ -123,8 +128,8 @@ const server = new ApolloServer({
   typeDefs,
   resolvers,
   dataSources: () => ({
-    users: new Users(db.table('users')),
-    posts: new Posts(db.table('posts')),
+    users: new Users(),
+    posts: new Posts(),
   }),
 });
 ```
@@ -136,7 +141,9 @@ To enable shared application-level caching, you do everything from the above sec
 ```js
 const MINUTE = 60;
 
-class Users extends AirtableDataSource {
+module.exports.Users = class extends AirtableDataSource {
+  ...
+  
   getUser(userId) {
     return this.findOneById(userId, { ttl: MINUTE });
   }
@@ -167,67 +174,15 @@ const resolvers = {
 
 Here we also call [`deleteFromCacheById()`](#deletefromcachebyid) to remove the user from the cache when the user's data changes. If we're okay with people receiving out-of-date data for the duration of our `ttl`—in this case, for as long as a minute—then we don't need to bother adding calls to `deleteFromCacheById()`.
 
-### TypeScript
-
-Since we are using a typed language, we want the provided methods to be correctly typed as well. This requires us to make the `AirtableDataSource` class polymorphic. It requires 1-2 template arguments. The first argument is the type of the document in our table. The second argument is the type of context in our GraphQL server, which defaults to `any`. For example:
-
-`data-sources/Users.ts`
-
-```ts
-import { AirtableDataSource } from 'apollo-datasource-airtable';
-
-interface UserDocument {
-  _id: string;
-  username: string;
-  password: string;
-  email: string;
-  interests: [string];
-}
-
-// This is optional
-interface Context {
-  loggedInUser: UserDocument;
-}
-
-export default class Users extends AirtableDataSource<UserDocument, Context> {
-  getUser(userId) {
-    // this.context has type `Context` as defined above
-    // this.findOneById has type `(id: string) => Promise<UserDocument | null | undefined>`
-    return this.findOneById(userId);
-  }
-}
-```
-
-and:
-
-```ts
-import Airtable from 'airtable';
-
-import Users from './data-sources/Users.ts';
-
-const client = new MongoClient('airtable://localhost:27017/test');
-client.connect();
-
-const server = new ApolloServer({
-  typeDefs,
-  resolvers,
-  dataSources: () => ({
-    users: new Users(client.db().table('users')),
-    // OR
-    // users: new Users(UserModel)
-  }),
-});
-```
-
 ## API
 
-The type of the `id` argument must match the type used in the database, which is a string.
+The type of the `id` argument must match the type used in Airtable, which is a string.
 
 ### findOneById
 
 `this.findOneById(id, { ttl })`
 
-Resolves to the found document. Uses DataLoader to load `id`. DataLoader uses `table.select({ filterByFormula: "OR((SWITCH({{name}, "a", 1, "b", 1, "c", 1, 0))=1)" })`. Optionally caches the document if `ttl` is set (in whole positive seconds).
+Resolves to the found document. Uses DataLoader to load `id`. DataLoader uses `table.select({ filterByFormula: "OR(FIND("targetValue", LOWER(ARRAYJOIN({actualValues}))))>0)`. Optionally caches the document if `ttl` is set (in whole positive seconds).
 
 ### findManyByIds
 
@@ -258,19 +213,19 @@ interface Fields {
 
 ```js
 // get user by username
-// `table.select({ username: $in: ['testUser'] })`
+// `table.select({ filterByFormula: "OR(FIND("testUser", LOWER(ARRAYJOIN({username}))))>0)`
 this.findByFields({
   username: 'testUser',
 });
 
 // get all users with either the "gaming" OR "games" interest
-// `table.select({ interests: $in: ['gaming', 'games'] })`
+// `table.select({ filterByFormula: "OR(FIND("gaming", LOWER(ARRAYJOIN({interests}))))>0, FIND("games", LOWER(ARRAYJOIN({interests})))>0)`
 this.findByFields({
   interests: ['gaming', 'games'],
 });
 
 // get user by username AND with either the "gaming" OR "games" interest
-// `table.select({ username: $in: ['testUser'], interests: $in: ['gaming', 'games'] })`
+// `table.select({ filterByFormula: "OR(FIND("testUser", LOWER(ARRAYJOIN({username}))))>0, FIND("gaming", LOWER(ARRAYJOIN({interests}))))>0, FIND("games", LOWER(ARRAYJOIN({interests})))>0)`
 this.findByFields({
   username: 'testUser',
   interests: ['gaming', 'games'],
