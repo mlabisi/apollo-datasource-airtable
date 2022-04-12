@@ -13,8 +13,6 @@ This package uses [DataLoader](https://github.com/graphql/dataloader) for batchi
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-**Contents:**
-
 - [Usage](#usage)
   - [Basic](#basic)
   - [Batching](#batching)
@@ -26,6 +24,7 @@ This package uses [DataLoader](https://github.com/graphql/dataloader) for batchi
   - [findByFields](#findbyfields)
     - [Examples](#examples)
   - [deleteFromCacheById](#deletefromcachebyid)
+  - [deleteFromCacheByFields](#deletefromcachebyfields)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
