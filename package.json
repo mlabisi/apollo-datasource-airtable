@@ -1,6 +1,6 @@
 {
   "name": "@mlabisi/apollo-datasource-airtable",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Apollo data source for Airtable",
   "main": "index.js",
   "scripts": {
