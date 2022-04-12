@@ -1,4 +1,4 @@
-Apollo [data source](https://www.apollographql.com/docs/apollo-server/features/data-sources) for Airtable, heavily Inspired by [apollo-datasource-mongodb](https://www.npmjs.com/package/apollo-datasource-mongodb)
+Apollo [data source](https://www.apollographql.com/docs/apollo-server/features/data-sources) for Airtable, heavily inspired by [apollo-datasource-mongodb](https://www.npmjs.com/package/apollo-datasource-mongodb)
 
 ```
 npm i apollo-datasource-airtable
