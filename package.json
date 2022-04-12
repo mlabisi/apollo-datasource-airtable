@@ -4,7 +4,9 @@
   "description": "Apollo data source for Airtable",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --watch",
+    "prettify": "prettier --write **/*.js",
+    "release": "release patch && echo 'A Github Action will now publish to NPM! 🚀'"
   },
   "engines": {
     "node": "14.18.2",
@@ -25,7 +27,10 @@
     "apollo-datasource": "^3.3.1",
     "apollo-server-caching": "^3.3.0",
     "bson": "^4.6.2",
-    "dataloader": "^2.0.0",
+    "dataloader": "^2.0.0"
+  },
+  "devDependencies": {
+    "jest": "^24.9.0",
     "prettier": "^2.6.2"
   }
 }
