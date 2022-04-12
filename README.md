@@ -150,14 +150,14 @@ module.exports.Users = class extends AirtableDataSource {
 
   updateUserName(userId, newName) {
     this.deleteFromCacheById(userId);
-    return this.table.updateOne(
+    return this.table.update([
       {
-        _id: userId,
-      },
-      {
-        $set: { name: newName },
-      },
-    );
+        "id": "userId",
+        "fields": {
+          "name": newName
+        }
+      }
+    ]);
   }
 }
 
