@@ -40,7 +40,8 @@ const orderRecords = (fieldsToFilters, results) => {
           ? filterValues.map((val) => val.toLowerCase())
           : [filterValues.toString().toLowerCase()];
 
-        const resultValue = result.fields[fieldName]; // get the actual values
+        const resultValue =
+          fieldName === 'id' ? result.id : result.fields[fieldName]; // get the actual values
         if (typeof resultValue === 'undefined') return false;
         const wrappedResultValue = Array.isArray(resultValue)
           ? resultValue.map((val) => val.toLowerCase())
@@ -91,7 +92,9 @@ const createCachingMethods = ({ table, cache }) => {
           // for each filter value, create the airtable equivalent of the Array.includes function
           for (const value of wrappedValues) {
             filterFormulas.push(
-              `(FIND("${value.toString().toLowerCase()}", LOWER(ARRAYJOIN({${fieldName}}))))>0`,
+              `(FIND("${value.toString().toLowerCase()}", LOWER(ARRAYJOIN(${
+                fieldName === 'id' ? 'RECORD_ID()' : `{${fieldName}}`
+              }))))>0`,
             );
           }
 
