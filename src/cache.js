@@ -71,7 +71,16 @@ const createCachingMethods = ({ table, cache }) => {
           .select({ view: 'Grid view' })
           .all()
           .then((allRecords) => {
-            const records = allRecords.map((record) => record._rawJson);
+            const records = [];
+
+            allRecords.forEach((record) => {
+              loader.prime(
+                EJSON.stringify({ id: record.id.toString() }),
+                EJSON.stringify(record._rawJson),
+              );
+              records.push(record._rawJson);
+            });
+
             all = { ALL: records };
             filters.push(all);
           });
@@ -173,7 +182,7 @@ const createCachingMethods = ({ table, cache }) => {
 
       // return the cached result
       if (cachedResult) {
-        return cachedResult;
+        return EJSON.parse(cachedResult);
       }
 
       const wrappedResult = await loader.load('ALL');
@@ -185,7 +194,7 @@ const createCachingMethods = ({ table, cache }) => {
       return wrappedResult;
     },
     deleteFromCacheById: async (id) => {
-      loader.clear(EJSON.stringify({ id }));
+      loader.clear(EJSON.stringify({ id: id.toString() }));
       const cacheKey = cachePrefix + id.toString();
       await cache.delete(cacheKey);
     },
