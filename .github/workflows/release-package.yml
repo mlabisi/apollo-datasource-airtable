@@ -2,7 +2,7 @@ name: Node.js Package
 
 on:
   release:
-    types: [created]
+    types: [ created ]
 
 jobs:
   build:
@@ -32,8 +32,8 @@ jobs:
           node-version: 14
           registry-url: https://npm.pkg.github.com/
       - run: npm ci
-      env:
-        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - run: npm publish
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
