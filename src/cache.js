@@ -193,6 +193,10 @@ const createCachingMethods = ({ table, cache }) => {
 
       return wrappedResult;
     },
+    clearAllRecords: async () => {
+      loader.clear('ALL');
+      await cache.delete(cachePrefix + 'all');
+    },
     deleteFromCacheById: async (id) => {
       loader.clear(EJSON.stringify({ id: id.toString() }));
       const cacheKey = cachePrefix + id.toString();
