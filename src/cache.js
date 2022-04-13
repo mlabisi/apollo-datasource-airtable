@@ -17,10 +17,7 @@ const mapFieldsToFilters = (filterFields) => {
       : [filterFields[fieldName]]; // single filter wrapped in array
   }
 
-  return {
-    loaderKey: EJSON.stringify(fieldsToFilters),
-    fieldsToFilters,
-  };
+  return EJSON.stringify(fieldsToFilters);
 };
 
 const orderRecords = (fieldsToFilters, results) => {
@@ -139,7 +136,7 @@ const createCachingMethods = ({ table, cache }) => {
         EJSON.stringify({ id: id.toString() }),
       );
 
-      if (ttl) {
+      if (ttl > 0) {
         cache.set(cacheKey, EJSON.stringify(wrappedRecord[0]), { ttl });
       }
 
@@ -150,7 +147,7 @@ const createCachingMethods = ({ table, cache }) => {
     },
     findByFields: async (filterFields, { ttl } = {}) => {
       // make all field names map to an array of values to filter with
-      const { loaderKey, fieldsToFilters } = mapFieldsToFilters(filterFields);
+      const loaderKey = mapFieldsToFilters(filterFields);
 
       // check cache for records found to match this filter
       const cacheKey = cachePrefix + loaderKey;
@@ -161,12 +158,9 @@ const createCachingMethods = ({ table, cache }) => {
         return EJSON.parse(cachedResult);
       }
 
-      const fieldNames = Object.keys(fieldsToFilters);
-      let result;
+      const result = await loader.load(loaderKey); // load the records that match the given filters { <fieldName>: [<val1> [, ...<vals>]] }
 
-      result = await loader.load(loaderKey); // load the records that match the given filters { <fieldName>: [<val1> [, ...<vals>]] }
-
-      if (ttl) {
+      if (ttl > 0) {
         cache.set(cacheKey, EJSON.stringify(result), { ttl });
       }
 
@@ -184,8 +178,8 @@ const createCachingMethods = ({ table, cache }) => {
 
       const wrappedResult = await loader.load('ALL');
 
-      if (ttl) {
-        cache.set(cacheKey, wrappedResult, { ttl });
+      if (ttl > 0) {
+        cache.set(cacheKey, EJSON.stringify(wrappedResult), { ttl });
       }
 
       return wrappedResult;
@@ -196,7 +190,7 @@ const createCachingMethods = ({ table, cache }) => {
       await cache.delete(cacheKey);
     },
     deleteFromCacheByFields: async (fields) => {
-      const { loaderKey } = mapFieldsToFilters(fields);
+      const loaderKey = mapFieldsToFilters(fields);
       const cacheKey = cachePrefix + loader;
       loader.clear(loaderKey);
       await cache.delete(cacheKey);
