@@ -1,12 +1,14 @@
 {
   "name": "@mlabisi/apollo-datasource-airtable",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "description": "Apollo data source for Airtable",
-  "main": "index.js",
+  "repository": {
+    "url": "git://github.com/mlabisi/apollo-datasource-airtable.git"
+  },
+  "main": "src/index.js",
   "scripts": {
     "test": "jest",
-    "prettify": "prettier --write **/*.js",
-    "release": "release patch && echo 'A Github Action will now publish to NPM! 🚀'"
+    "prettify": "prettier --write **/*.js"
   },
   "engines": {
     "node": "14.18.2",
