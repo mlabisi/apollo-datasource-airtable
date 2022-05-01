@@ -193,7 +193,7 @@ const createCachingMethods = ({ table, cache }) => {
 
       return wrappedResult;
     },
-    clearAllRecords: async () => {
+    clearAllRecordsCache: async () => {
       loader.clear('ALL');
       await cache.delete(cachePrefix + 'all');
     },

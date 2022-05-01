@@ -14,9 +14,9 @@ describe('AirtableDataSource', () => {
 
     expect(testSource.findOneById).toBeDefined()
     expect(testSource.findByFields).toBeDefined()
+    expect(testSource.clearAllRecordsCache).toBeDefined()
     expect(testSource.deleteFromCacheById).toBeDefined()
     expect(testSource.deleteFromCacheByFields).toBeDefined()
     expect(testSource.table).toEqual(testTable)
-
   });
 });
