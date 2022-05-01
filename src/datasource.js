@@ -23,5 +23,5 @@ class AirtableDataSource extends DataSource {
 }
 
 module.exports = {
-  AirtableDataSource
-}
+  AirtableDataSource,
+};
