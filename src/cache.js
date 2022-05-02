@@ -34,7 +34,7 @@ const orderRecords = (fieldsToFilters, results) => {
         const filterValues = fieldAndFilters[fieldName]; // get the filter values
         if (typeof filterValues === 'undefined') return false;
         const wrappedFilterValues = Array.isArray(filterValues)
-          ? filterValues.map((val) => val.toLowerCase())
+          ? filterValues.map((val) => val.toString().toLowerCase())
           : [filterValues.toString().toLowerCase()];
 
         const resultValue =
