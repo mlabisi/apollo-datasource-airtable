@@ -182,19 +182,19 @@ The type of the `id` argument must match the type used in Airtable, which is a s
 
 `this.findOneById(id, { ttl })`
 
-Resolves to the found document. Uses DataLoader to load `id`. DataLoader uses `table.select({ filterByFormula: "OR(FIND("targetValue", LOWER(ARRAYJOIN({actualValues}))))>0)`. Optionally caches the document if `ttl` is set (in whole positive seconds).
+Resolves to the found record. Uses DataLoader to load `id`. DataLoader uses `table.select({ filterByFormula: "OR(FIND("targetValue", LOWER(ARRAYJOIN({actualValues}))))>0)`. Optionally caches the record if `ttl` is set (in whole positive seconds).
 
 ### findManyByIds
 
 `this.findManyByIds(ids, { ttl })`
 
-Calls [`findOneById()`](#findonebyid) for each id. Resolves to an array of documents.
+Calls [`findOneById()`](#findonebyid) for each id. Resolves to an array of records.
 
 ### findByFields
 
 `this.findByFields(fields, { ttl })`
 
-Resolves to an array of documents matching the passed fields.
+Resolves to an array of records matching the passed fields.
 
 `fields` has this type:
 
@@ -236,10 +236,10 @@ this.findByFields({
 
 `this.deleteFromCacheById(id)`
 
-Deletes a document from the cache that was fetched with `findOneById` or `findManyByIds`.
+Deletes a record from the cache that was fetched with `findOneById` or `findManyByIds`.
 
 ### deleteFromCacheByFields
 
 `this.deleteFromCacheByFields(fields)`
 
-Deletes a document from the cache that was fetched with `findByFields`. Fields should be passed in exactly the same way they were used to find with.
+Deletes a record from the cache that was fetched with `findByFields`. Fields should be passed in exactly the same way they were used to find with.
